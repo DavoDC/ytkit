@@ -1,4 +1,6 @@
 data/logs/*.log
 config/config.json
 dependencies/yt-dlp/yt-dlp.exe
+__pycache__/
+*.pyc
 *.tmp
