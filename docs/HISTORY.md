@@ -14,6 +14,13 @@ First successful download: NTFLX & Drill - Hagrid & Harry [EXTENDED] (MP3).
 - Made repo public on GitHub
 - Cross-referenced with ffkit (both CLAUDE.md files updated)
 
+## 2026-06-30 - CLI wrapper src/ytkit.py
+
+`python src/ytkit.py --url <url>` - reads config.json, fills in all flags and paths,
+shells out to yt-dlp. Handles audio (MP3 VBR0) and video (MP4). Auto-triggers
+`download_ytdlp.py` if binary missing. All tests passing. Claude now needs zero
+manual path construction for downloads.
+
 ## 2026-06-30 - Auto-download yt-dlp (P0)
 
 `src/download_ytdlp.py` - checks `config.ytdlp_exe`, downloads from GitHub releases

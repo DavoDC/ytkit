@@ -26,24 +26,27 @@ Download audio and video from YouTube with sane defaults - highest quality audio
 
 ## Usage
 
-See `CLAUDE.md` for the full download command. Basic audio download:
-
 ```bash
-yt-dlp.exe --ffmpeg-location "path/to/ffmpeg" \
-  -f "bestaudio" --extract-audio --audio-format mp3 --audio-quality 0 \
-  -o "path/to/output/%(title)s.%(ext)s" \
-  "https://youtu.be/..."
+# Download audio as MP3 (highest quality)
+python src/ytkit.py --url "https://youtu.be/..."
+
+# Download video
+python src/ytkit.py --url "https://youtu.be/..." --format video
 ```
+
+Paths, flags, and format defaults are handled automatically from `config/config.json`.
+No manual yt-dlp commands needed.
 
 ## Structure
 
 ```
 ytkit/
-  config/          - config.example.json (template) + config.json (gitignored, your paths)
-  src/             - Python utilities (auto-downloader, helpers)
-  scripts/         - launchers (future)
-  data/logs/       - runtime logs
-  docs/            - IDEAS.md, HISTORY.md
+  config/               - config.example.json (template) + config.json (gitignored)
+  src/ytkit.py          - CLI wrapper: one command, all paths auto-filled
+  src/download_ytdlp.py - auto-downloads yt-dlp binary if missing
+  scripts/              - launchers (future)
+  data/logs/            - runtime logs
+  docs/                 - IDEAS.md, HISTORY.md
 ```
 
 ## Related
