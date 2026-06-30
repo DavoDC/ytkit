@@ -22,8 +22,8 @@ All machine-specific paths live in `config/config.json` (gitignored). To set up:
 
 ## yt-dlp binary and docs
 
-- **Binary location:** read from `config/config.json` (`ytdlp_exe` key)
-- **Auto-download:** if `ytdlp_exe` path doesn't exist, run `src/download_ytdlp.py` to fetch it automatically
+- **Binary location:** read from `config/config.json` (`ytdlp_exe` key) - after first run points to `dependencies/yt-dlp/yt-dlp.exe`
+- **Auto-download:** if `ytdlp_exe` path doesn't exist, run `python src/download_ytdlp.py` - downloads to `dependencies/yt-dlp/yt-dlp.exe` and updates config automatically
 - **yt-dlp repo:** https://github.com/yt-dlp/yt-dlp
 - **yt-dlp full docs (all options, formats, extractors):** https://github.com/yt-dlp/yt-dlp#readme
 - **Releases (manual download):** https://github.com/yt-dlp/yt-dlp/releases

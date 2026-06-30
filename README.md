@@ -18,10 +18,11 @@ Download audio and video from YouTube with sane defaults - highest quality audio
 1. Clone the repo
 2. Copy `config/config.example.json` to `config/config.json`
 3. Fill in your paths:
-   - `ytdlp_exe` - path to your yt-dlp executable (see [yt-dlp releases](https://github.com/yt-dlp/yt-dlp/releases))
+   - `ytdlp_exe` - leave blank to auto-download, or point to an existing `yt-dlp.exe`
    - `ffmpeg_dir` - path to a folder containing `ffmpeg.exe` (or use [ffkit](https://github.com/DavoDC/ffkit))
    - `audio_output_dir` - where downloaded audio goes
    - `video_output_dir` - where downloaded video goes
+4. Run `python src/download_ytdlp.py` - auto-downloads yt-dlp if missing and updates your config
 
 ## Usage
 

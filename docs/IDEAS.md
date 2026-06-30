@@ -4,20 +4,6 @@ Priority order: P0 = blocking/next dev session | P1 = high value | P2 = future
 
 ---
 
-## P0 - Auto-download yt-dlp on first run
-
-Mirror how ffkit handles FFmpeg: a Python script in `src/` that checks whether
-`config.ytdlp_exe` exists, and if not, downloads the latest release binary from
-the yt-dlp GitHub releases API automatically.
-
-- Script lives in `src/download_ytdlp.py`
-- No human steps, no .bat wrapper needed - Claude calls it directly
-- Reads/writes `config/config.json` to set `ytdlp_exe` after download
-- Supports Claude integration: Claude checks config, runs script if path missing, then proceeds with download
-- Reference: [yt-dlp releases](https://github.com/yt-dlp/yt-dlp/releases) - latest Windows exe is `yt-dlp.exe` asset
-- yt-dlp docs for advanced features: https://github.com/yt-dlp/yt-dlp#readme
-
----
 
 ## P1 - FFmpeg troubleshooting via ffkit
 
