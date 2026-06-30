@@ -1,5 +1,7 @@
 # ytkit
 
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/G2G31WKOCN)
+
 YouTube download utilities powered by yt-dlp.
 
 Download audio and video from YouTube with sane defaults - highest quality audio as MP3, organised output, and no manual fiddling with format codes.
@@ -16,7 +18,7 @@ Download audio and video from YouTube with sane defaults - highest quality audio
 1. Clone the repo
 2. Copy `config/config.example.json` to `config/config.json`
 3. Fill in your paths:
-   - `ytdlp_exe` - path to your yt-dlp executable
+   - `ytdlp_exe` - path to your yt-dlp executable (see [yt-dlp releases](https://github.com/yt-dlp/yt-dlp/releases))
    - `ffmpeg_dir` - path to a folder containing `ffmpeg.exe` (or use [ffkit](https://github.com/DavoDC/ffkit))
    - `audio_output_dir` - where downloaded audio goes
    - `video_output_dir` - where downloaded video goes
@@ -36,8 +38,9 @@ yt-dlp.exe --ffmpeg-location "path/to/ffmpeg" \
 
 ```
 ytkit/
-  config/          - config.example.json (template) + config.json (gitignored)
-  scripts/         - download helpers and launchers (future)
+  config/          - config.example.json (template) + config.json (gitignored, your paths)
+  src/             - Python utilities (auto-downloader, helpers)
+  scripts/         - launchers (future)
   data/logs/       - runtime logs
   docs/            - IDEAS.md, HISTORY.md
 ```
@@ -45,5 +48,4 @@ ytkit/
 ## Related
 
 - [ffkit](https://github.com/DavoDC/ffkit) - FFmpeg toolkit; ytkit uses it as the shared FFmpeg source
-
-[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/G2G31WKOCN)
+- [yt-dlp](https://github.com/yt-dlp/yt-dlp) - the underlying download engine
