@@ -1,0 +1,7 @@
+{
+  "_comment": "Copy this file to config.json and fill in your actual paths. config.json is gitignored.",
+  "ytdlp_exe": "C:\\path\\to\\yt-dlp.exe",
+  "ffmpeg_dir": "C:\\path\\to\\ffmpeg\\bin",
+  "audio_output_dir": "C:\\Users\\YourName\\Downloads\\NewMusic",
+  "video_output_dir": "C:\\Users\\YourName\\Downloads"
+}
