@@ -7,3 +7,15 @@ produces webm output instead of MP3 (ffmpeg not on PATH). CLAUDE.md now encodes
 the full working command so future sessions never hit this again.
 
 First successful download: NTFLX & Drill - Hagrid & Harry [EXTENDED] (MP3).
+
+## 2026-06-30 - Made public, config folder pattern
+
+- Moved hardcoded personal paths to `config/config.json` (gitignored) + `config/config.example.json` (template)
+- Made repo public on GitHub
+- Cross-referenced with ffkit (both CLAUDE.md files updated)
+
+## 2026-06-30 - NOT_MY_REPOS/yt-dlp retired
+
+`C:\Users\David\GitHubRepos\NOT_MY_REPOS\yt-dlp` was a manual clone of yt-dlp with
+a downloaded exe in it. Retired in favour of `src/download_ytdlp.py` auto-downloader
+(mirrors ffkit's FFmpeg auto-download pattern). yt-dlp source: https://github.com/yt-dlp/yt-dlp
