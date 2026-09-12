@@ -26,6 +26,12 @@ Download audio and video from YouTube with sane defaults - highest quality audio
 
 ## Usage
 
+### No terminal needed
+
+Double-click `scripts/ytkit.bat`, paste a YouTube URL, pick audio/video/transcript. That's it - no Python commands, no Claude required.
+
+### Command line
+
 ```bash
 # Download audio as MP3 (highest quality)
 python src/ytkit.py --url "https://youtu.be/..."
@@ -44,7 +50,7 @@ ytkit/
   config/               - config.example.json (template) + config.json (gitignored)
   src/ytkit.py          - CLI wrapper: one command, all paths auto-filled
   src/download_ytdlp.py - auto-downloads yt-dlp binary if missing
-  scripts/              - launchers (future)
+  scripts/ytkit.bat     - double-click launcher, no terminal/Claude needed
   data/logs/            - runtime logs
   docs/                 - IDEAS.md, HISTORY.md
 ```
