@@ -31,6 +31,18 @@ Persist a JSON log of every download (`data/history.json`):
 
 ---
 
+## P1 - Auto-update detection for yt-dlp
+
+yt-dlp binary bundled here can become stale. Consumer repos that use ytkit should always run a recent version. Design needed: (1) When to check for updates? (e.g., on each call, once per day, if >7 days old). (2) When to auto-update? (e.g., on major version bump, weekly schedule, user opt-in). (3) Where to store last-update timestamp? ytkit should detect stale binaries and update transparently so all consumers auto-benefit. **Design TBD** - coordinate with ffkit for consistency.
+
+---
+
+## P1 - Ensure all consumer repos use ytkit instead of local yt-dlp
+
+Audit all consumer repos: any with local `dependencies/yt-dlp/` should remove those copies and call into ytkit instead. Prevents version skew incidents (e.g., outdated binary running from stale local copy). Depends on auto-update detection above. Use sibling-check pattern already in main to identify consumers.
+
+---
+
 ## P2 - Lightweight download UI
 
 Build a GUI on top of yt-dlp to replace the old Java YTD.
