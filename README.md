@@ -65,7 +65,6 @@ ytkit/
   src/ytkit_update.py   - non-blocking background updater for the yt-dlp binary
   scripts/ytkit.bat     - double-click launcher, no terminal/Claude needed
   data/logs/            - runtime logs
-  docs/                 - IDEAS.md, HISTORY.md (stubs)
 ```
 
 ## Related
