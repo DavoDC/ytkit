@@ -11,8 +11,7 @@ YouTube download utilities powered by yt-dlp.
 - `data/state/` - updater state and lock (gitignored)
 - `scripts/` - launchers (future)
 - `data/logs/` - runtime logs
-- `docs/IDEAS.md` - pending work
-- `docs/HISTORY.md` - completed work
+- `docs/IDEAS.md`, `docs/HISTORY.md` - stubs only: the backlog is kept privately by the maintainer, not in this repo (use GitHub issues for requests)
 
 ## How to download (Claude instructions)
 
