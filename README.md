@@ -43,6 +43,18 @@ python src/ytkit.py --url "https://youtu.be/..." --format video
 Paths, flags, and format defaults are handled automatically from `config/config.json`.
 No manual yt-dlp commands needed.
 
+## Background updates
+
+yt-dlp goes stale quickly, so ytkit keeps its binary fresh without ever making a download wait. Each run uses the binary you already have straight away. If the last check was more than 24 hours ago, a detached background process checks for a newer release after your task finishes, downloads it beside the old one, runs `--version` on it as a smoke test, keeps the old binary as `yt-dlp.previous.exe`, and swaps the new one in with a single `os.replace`. The next run picks it up.
+
+A failed download or a failed smoke test never touches the working binary. If `yt-dlp.exe` is in use (Windows locks running programs) the new file stays staged and the swap is retried a little later. A lock file keeps it to one updater at a time, and the time of the last check is recorded before the network call so a crash cannot cause a retry storm. It only checks GitHub for release info and downloads from the official yt-dlp releases, and it logs to `data/logs/ytkit_update.log`.
+
+```bash
+python src/ytkit_update.py --status   # last check, stale or fresh, pending swap (no side effects)
+python src/ytkit_update.py --check    # start the background updater if a check is due
+python src/ytkit_update.py --run --force   # update now, in the foreground
+```
+
 ## Structure
 
 ```
@@ -50,6 +62,7 @@ ytkit/
   config/               - config.example.json (template) + config.json (gitignored)
   src/ytkit.py          - CLI wrapper: one command, all paths auto-filled
   src/download_ytdlp.py - auto-downloads yt-dlp binary if missing
+  src/ytkit_update.py   - non-blocking background updater for the yt-dlp binary
   scripts/ytkit.bat     - double-click launcher, no terminal/Claude needed
   data/logs/            - runtime logs
   docs/                 - IDEAS.md, HISTORY.md

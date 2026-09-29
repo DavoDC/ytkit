@@ -4,3 +4,6 @@ dependencies/yt-dlp/yt-dlp.exe
 __pycache__/
 *.pyc
 *.tmp
+data/state/
+dependencies/yt-dlp/yt-dlp.new.exe
+dependencies/yt-dlp/yt-dlp.previous.exe

@@ -15,6 +15,9 @@ import subprocess
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).parent))
+import ytkit_update  # noqa: E402
+
 REPO_ROOT = Path(__file__).parent.parent
 CONFIG_PATH = REPO_ROOT / "config" / "config.json"
 
@@ -30,6 +33,11 @@ def load_config():
 def ensure_ytdlp(config):
     exe = config.get("ytdlp_exe", "")
     if exe and Path(exe).exists():
+        # Stale-while-revalidate: use the current binary now; a detached updater may start after this task.
+        try:
+            ytkit_update.resolve(exe, defer_to_exit=True)
+        except Exception:
+            pass
         return config
     print("yt-dlp binary not found - running auto-downloader...")
     dl_script = REPO_ROOT / "src" / "download_ytdlp.py"

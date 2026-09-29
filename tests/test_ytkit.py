@@ -54,9 +54,24 @@ class TestEnsureYtdlp(unittest.TestCase):
             mock_path = MagicMock()
             mock_path.exists.return_value = True
             mock_path_cls.return_value = mock_path
-            with patch("ytkit.subprocess.run") as mock_run:
+            with patch("ytkit.subprocess.run") as mock_run, patch("ytkit.ytkit_update.resolve"):
                 result = ytkit.ensure_ytdlp(SAMPLE_CONFIG)
                 mock_run.assert_not_called()
+        self.assertEqual(result, SAMPLE_CONFIG)
+
+    def test_present_binary_hands_off_to_background_updater_after_task(self):
+        with patch("ytkit.Path") as mock_path_cls:
+            mock_path_cls.return_value.exists.return_value = True
+            with patch("ytkit.ytkit_update.resolve") as mock_resolve:
+                ytkit.ensure_ytdlp(SAMPLE_CONFIG)
+        mock_resolve.assert_called_once()
+        self.assertTrue(mock_resolve.call_args.kwargs.get("defer_to_exit"))
+
+    def test_updater_failure_never_breaks_a_task(self):
+        with patch("ytkit.Path") as mock_path_cls:
+            mock_path_cls.return_value.exists.return_value = True
+            with patch("ytkit.ytkit_update.resolve", side_effect=RuntimeError("boom")):
+                result = ytkit.ensure_ytdlp(SAMPLE_CONFIG)
         self.assertEqual(result, SAMPLE_CONFIG)
 
     def test_triggers_download_when_binary_missing(self):

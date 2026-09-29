@@ -7,6 +7,8 @@ YouTube download utilities powered by yt-dlp.
 - `config/` - `config.example.json` (template) and `config.json` (gitignored, your real paths)
 - `src/ytkit.py` - CLI wrapper: one command downloads anything, paths handled automatically
 - `src/download_ytdlp.py` - auto-downloads yt-dlp binary if missing
+- `src/ytkit_update.py` - non-blocking background updater (stale-while-revalidate); `python src/ytkit_update.py --status|--check|--run|--resolve`
+- `data/state/` - updater state and lock (gitignored)
 - `scripts/` - launchers (future)
 - `data/logs/` - runtime logs
 - `docs/IDEAS.md` - pending work
@@ -33,7 +35,7 @@ Downloads English subs (manual or auto-generated) via yt-dlp, no ffmpeg required
 That's it. ytkit reads `config/config.json` and fills in all paths and flags automatically.
 No manual path construction. No reading config first. Just run the command.
 
-The wrapper auto-downloads yt-dlp if the binary is missing, then proceeds.
+The wrapper auto-downloads yt-dlp if the binary is missing, then proceeds. When the binary is present it is used at once; if the last update check is over 24 hours old a detached updater runs after the task (download to `yt-dlp.new.exe`, `--version` smoke test, old kept as `yt-dlp.previous.exe`, `os.replace`). Never blocks a task. Tests inject every network/process boundary: `python -m pytest -q`.
 
 ## Configuration
 
