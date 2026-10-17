@@ -52,6 +52,13 @@ All machine-specific paths live in `config/config.json` (gitignored). To set up:
 - **yt-dlp full docs:** https://github.com/yt-dlp/yt-dlp#readme
 - **Releases:** https://github.com/yt-dlp/yt-dlp/releases
 
+## Instagram reels (checked 2026-10-17)
+
+- Public reels download with the bundled yt-dlp, no login or cookies: `yt-dlp.exe --ffmpeg-location <ffmpeg_dir> -o "%(id)s.%(ext)s" https://www.instagram.com/reel/<ID>/` (strip the query string). Without `--ffmpeg-location` the video and audio streams are not merged.
+- `--format transcript` does not work on reels: Instagram has no subtitle tracks. A transcript needs a local whisper pass over the audio.
+- The title field is useless ("Video by <handle>"); the post caption is in `description`: `yt-dlp.exe --skip-download --print description <url>`. Duration prints NA, use ffprobe.
+- Untested: whether `ytkit.py --url` itself accepts Instagram URLs (the check called yt-dlp directly).
+
 ## FFmpeg via ffkit
 
 ytkit depends on [ffkit](https://github.com/DavoDC/ffkit) for FFmpeg.
