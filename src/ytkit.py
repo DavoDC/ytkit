@@ -6,6 +6,8 @@ Usage:
   python src/ytkit.py --url <YouTube URL>
   python src/ytkit.py --url <YouTube URL> --format video
   python src/ytkit.py --url <YouTube URL> --format transcript
+  python src/ytkit.py --url <any yt-dlp URL> --format info --out-dir <dir>
+  python src/ytkit.py --url <any yt-dlp URL> --format frames --out-dir <dir> [--every 3]
 """
 
 import argparse
@@ -20,6 +22,7 @@ import ytkit_update  # noqa: E402
 
 REPO_ROOT = Path(__file__).parent.parent
 CONFIG_PATH = REPO_ROOT / "config" / "config.json"
+NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
 
 def load_config():
@@ -41,13 +44,16 @@ def ensure_ytdlp(config):
         return config
     print("yt-dlp binary not found - running auto-downloader...")
     dl_script = REPO_ROOT / "src" / "download_ytdlp.py"
-    subprocess.run([sys.executable, str(dl_script)], check=True)
+    subprocess.run([sys.executable, str(dl_script)], check=True, creationflags=NO_WINDOW)
     return json.loads(CONFIG_PATH.read_text())
 
 
-def build_command(config, url, mode="audio"):
+def build_command(config, url, mode="audio", out_dir=None):
     ytdlp = config["ytdlp_exe"]
     ffmpeg_dir = config["ffmpeg_dir"]
+
+    if mode == "info":
+        return [ytdlp, "--skip-download", "--dump-single-json", "--no-warnings", url]
 
     if mode == "audio":
         out = f"{config['audio_output_dir']}/%(title)s.%(ext)s"
@@ -74,15 +80,92 @@ def build_command(config, url, mode="audio"):
             url,
         ]
 
-    out = f"{config['video_output_dir']}/%(title)s.%(ext)s"
+    if out_dir:
+        # Predictable name (id) and the final path printed, so frames mode can find the file.
+        out = f"{out_dir}/%(id)s.%(ext)s"
+        extra = ["--print", "after_move:filepath"]
+    else:
+        out = f"{config['video_output_dir']}/%(title)s.%(ext)s"
+        extra = []
     return [
         ytdlp,
         "--ffmpeg-location", ffmpeg_dir,
         "-f", "bestvideo+bestaudio",
         "--merge-output-format", "mp4",
+        *extra,
         "-o", out,
         url,
     ]
+
+
+def format_info(info: dict) -> str:
+    """Plain-text summary of yt-dlp metadata: who posted it, caption, stats, top comments."""
+    def stat(key):
+        value = info.get(key)
+        return "unknown" if value is None else value
+
+    lines = [
+        f"id: {info.get('id', 'unknown')}",
+        f"uploader: {info.get('uploader') or info.get('channel') or 'unknown'}",
+        f"upload_date: {stat('upload_date')}",
+        f"likes: {stat('like_count')}",
+        f"views: {stat('view_count')}",
+        f"comments: {stat('comment_count')}",
+        "caption:",
+        info.get("description") or "(none)",
+    ]
+    comments = info.get("comments") or []
+    if comments:
+        lines.append("top comments:")
+        lines += [f"- {c.get('author')}: {c.get('text')}" for c in comments[:20]]
+    return "\n".join(lines)
+
+
+def fetch_info(config, url, out_dir: Path):
+    """Write <id>.info.json and <id>.info.txt (caption, stats, comments) for url into out_dir.
+    Returns the .txt path, or None on failure. Works for any site yt-dlp supports."""
+    result = subprocess.run(build_command(config, url, mode="info"), capture_output=True, text=True,
+                            creationflags=NO_WINDOW)
+    if result.returncode != 0:
+        print(result.stderr, file=sys.stderr)
+        return None
+    info = json.loads(result.stdout)
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    stem = info.get("id") or "info"
+    (out_dir / f"{stem}.info.json").write_text(json.dumps(info, indent=2), encoding="utf-8")
+    txt_path = out_dir / f"{stem}.info.txt"
+    txt_path.write_text(format_info(info), encoding="utf-8")
+    print(format_info(info))
+    print(f"Info: {txt_path}")
+    return txt_path
+
+
+def build_frames_command(config, video_path: Path, out_dir: Path, every=3):
+    ffmpeg = Path(config["ffmpeg_dir"]) / "ffmpeg.exe"
+    return [str(ffmpeg), "-v", "error", "-i", str(video_path),
+            "-vf", f"fps=1/{every},scale=540:-1", str(Path(out_dir) / "f%03d.jpg")]
+
+
+def extract_frames(config, url, out_dir: Path, every=3):
+    """Download the video into out_dir and sample a JPEG every `every` seconds into out_dir/frames.
+    Returns the frames folder, or None on failure."""
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    result = subprocess.run(build_command(config, url, mode="video", out_dir=str(out_dir)),
+                            capture_output=True, text=True, creationflags=NO_WINDOW)
+    printed = [line for line in result.stdout.splitlines() if line.strip()]
+    if result.returncode != 0 or not printed:
+        print(result.stderr, file=sys.stderr)
+        return None
+    frames_dir = out_dir / "frames"
+    frames_dir.mkdir(exist_ok=True)
+    done = subprocess.run(build_frames_command(config, Path(printed[-1]), frames_dir, every),
+                          creationflags=NO_WINDOW)
+    if done.returncode != 0:
+        return None
+    print(f"Frames: {frames_dir}")
+    return frames_dir
 
 
 def clean_vtt(vtt_path: Path) -> str:
@@ -104,7 +187,7 @@ def download_transcript(config, url):
     """Download auto/manual English subs for url, clean to plain text, write a
     .txt next to the .vtt files. Returns the path to the cleaned .txt, or None."""
     cmd = build_command(config, url, mode="transcript")
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    result = subprocess.run(cmd, capture_output=True, text=True, creationflags=NO_WINDOW)
     print(result.stdout)
     if result.returncode != 0:
         print(result.stderr, file=sys.stderr)
@@ -137,19 +220,28 @@ def main():
     )
     parser.add_argument("--url", required=True, help="YouTube URL")
     parser.add_argument(
-        "--format", choices=["audio", "video", "transcript"], default="audio",
-        help="Output format (default: audio as MP3)"
+        "--format", choices=["audio", "video", "transcript", "info", "frames"], default="audio",
+        help="Output format (default: audio as MP3); info = caption/stats/comments, "
+             "frames = video plus a JPEG every --every seconds"
     )
+    parser.add_argument("--out-dir", help="Output folder for info/frames (default: video_output_dir)")
+    parser.add_argument("--every", type=int, default=3, help="Seconds between frames (frames mode)")
     args = parser.parse_args()
 
     config = load_config()
     config = ensure_ytdlp(config)
 
+    if args.format in ("info", "frames"):
+        out_dir = Path(args.out_dir or config["video_output_dir"])
+        if args.format == "info":
+            sys.exit(0 if fetch_info(config, args.url, out_dir) else 1)
+        sys.exit(0 if extract_frames(config, args.url, out_dir, args.every) else 1)
+
     if args.format == "transcript":
         sys.exit(0 if download_transcript(config, args.url) else 1)
 
     cmd = build_command(config, args.url, mode=args.format)
-    sys.exit(subprocess.run(cmd).returncode)
+    sys.exit(subprocess.run(cmd, creationflags=NO_WINDOW).returncode)
 
 
 if __name__ == "__main__":

@@ -100,5 +100,64 @@ class TestLoadConfig(unittest.TestCase):
                 ytkit.load_config()
 
 
+SAMPLE_INFO = {
+    "id": "DboG_LfRkYd",
+    "uploader": "JustSaySteven",
+    "description": "Indie Developer Made $360,000 in 24 hours",
+    "like_count": 5993,
+    "view_count": None,
+    "comment_count": 50,
+    "upload_date": "20260804",
+    "comments": [{"author": "a", "text": "Less is more"}],
+}
+
+
+class TestInfoMode(unittest.TestCase):
+    def test_info_command_skips_download_and_dumps_json(self):
+        cmd = ytkit.build_command(SAMPLE_CONFIG, "https://www.instagram.com/reel/x/", mode="info")
+        self.assertIn("--skip-download", cmd)
+        self.assertIn("--dump-single-json", cmd)
+        self.assertEqual(cmd[-1], "https://www.instagram.com/reel/x/")
+
+    def test_format_info_has_caption_stats_and_comments(self):
+        text = ytkit.format_info(SAMPLE_INFO)
+        self.assertIn("JustSaySteven", text)
+        self.assertIn("Indie Developer Made $360,000 in 24 hours", text)
+        self.assertIn("likes: 5993", text)
+        self.assertIn("Less is more", text)
+
+    def test_format_info_tolerates_missing_fields(self):
+        self.assertIn("views: unknown", ytkit.format_info({"id": "x"}))
+
+    def test_fetch_info_writes_json_and_txt(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            fake = MagicMock(returncode=0, stdout=json.dumps(SAMPLE_INFO), stderr="")
+            with patch("ytkit.subprocess.run", return_value=fake):
+                txt = ytkit.fetch_info(SAMPLE_CONFIG, "https://x/", Path(tmp))
+            self.assertTrue((Path(tmp) / "DboG_LfRkYd.info.json").exists())
+            self.assertIn("likes: 5993", txt.read_text(encoding="utf-8"))
+
+    def test_fetch_info_returns_none_on_failure(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            fake = MagicMock(returncode=1, stdout="", stderr="boom")
+            with patch("ytkit.subprocess.run", return_value=fake):
+                self.assertIsNone(ytkit.fetch_info(SAMPLE_CONFIG, "https://x/", Path(tmp)))
+
+
+class TestFramesMode(unittest.TestCase):
+    def test_frames_command_samples_every_n_seconds(self):
+        cmd = ytkit.build_frames_command(SAMPLE_CONFIG, Path("v.mp4"), Path("out"), every=3)
+        self.assertTrue(cmd[0].endswith("ffmpeg.exe") or cmd[0].endswith("ffmpeg"))
+        self.assertIn("fps=1/3,scale=540:-1", cmd)
+        self.assertTrue(cmd[-1].endswith("f%03d.jpg"))
+
+    def test_video_command_honours_out_dir(self):
+        cmd = ytkit.build_command(SAMPLE_CONFIG, "https://x/", mode="video", out_dir="D:\\TEMP\\x")
+        self.assertIn("D:\\TEMP\\x", cmd[cmd.index("-o") + 1])
+        self.assertIn("after_move:filepath", cmd)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -38,6 +38,12 @@ python src/ytkit.py --url "https://youtu.be/..."
 
 # Download video
 python src/ytkit.py --url "https://youtu.be/..." --format video
+
+# Caption, stats and top comments of any post (also Instagram reels), saved as .info.json and .info.txt
+python src/ytkit.py --url "https://www.instagram.com/reel/..." --format info --out-dir ./out
+
+# Download the video and sample a JPEG every 3 seconds into ./out/frames
+python src/ytkit.py --url "https://www.instagram.com/reel/..." --format frames --out-dir ./out --every 3
 ```
 
 Paths, flags, and format defaults are handled automatically from `config/config.json`.

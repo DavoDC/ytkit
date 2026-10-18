@@ -56,8 +56,17 @@ All machine-specific paths live in `config/config.json` (gitignored). To set up:
 
 - Public reels download with the bundled yt-dlp, no login or cookies: `yt-dlp.exe --ffmpeg-location <ffmpeg_dir> -o "%(id)s.%(ext)s" https://www.instagram.com/reel/<ID>/` (strip the query string). Without `--ffmpeg-location` the video and audio streams are not merged.
 - `--format transcript` does not work on reels: Instagram has no subtitle tracks. A transcript needs a local whisper pass over the audio.
-- The title field is useless ("Video by <handle>"); the post caption is in `description`: `yt-dlp.exe --skip-download --print description <url>`. Duration prints NA, use ffprobe.
-- Untested: whether `ytkit.py --url` itself accepts Instagram URLs (the check called yt-dlp directly).
+- The title field is useless ("Video by <handle>"); the post caption is in `description`. Use `--format info` for it instead of calling yt-dlp directly (below). Duration prints NA, use ffprobe.
+- Tested 2026-10-18: `ytkit.py --url <reel URL>` accepts Instagram reels for `--format video`, `info` and `frames`.
+
+## Info and frames modes (any site yt-dlp supports)
+
+```bash
+python src/ytkit.py --url <URL> --format info --out-dir <dir>
+python src/ytkit.py --url <URL> --format frames --out-dir <dir> --every 3
+```
+
+`info` writes `<id>.info.json` and `<id>.info.txt` (uploader, caption, likes, views, comment count, top comments) and prints the text. `frames` downloads the video as `<id>.mp4` into `--out-dir` and samples a JPEG every `--every` seconds into `<out-dir>/frames/` for reading a reel without watching it. Both default to `video_output_dir` when `--out-dir` is omitted; pass a TEMP folder from the workspace so nothing lands in Downloads. If a task needs something yt-dlp can give that ytkit cannot, extend ytkit with a tested mode, do not call yt-dlp by hand.
 
 ## FFmpeg via ffkit
 
