@@ -31,6 +31,8 @@ python src/ytkit.py --url <YouTube URL> --format transcript
 ```
 Downloads English subs (manual or auto-generated) via yt-dlp, no ffmpeg required, then cleans the `.vtt` into a deduplicated plain-text `.txt` next to it (auto-caption `.vtt` repeats lines in a rolling-caption format - the cleaner in `clean_vtt()` collapses that). Output goes to `transcript_output_dir` in `config/config.json`. **Only fetch the specific video URLs given - never pass a channel URL (`@channelname/videos`) to this or you'll bulk-download the whole channel's transcripts.** If you already have `.vtt` files from a manual yt-dlp run, `scripts/clean_transcripts.py <dir-or-files>` re-runs just the cleaning step (imports the same `clean_vtt()` - one canonical implementation, not duplicated).
 
+**Also handles Instagram reels and any yt-dlp site (not only YouTube):** `--format video`, `--format info` (caption, stats, top comments) and `--format frames` work on `https://www.instagram.com/reel/<ID>/` (strip the query string); `--format transcript` does not (reels have no subtitles). Details in the Instagram reels and Info and frames sections below. Never tell David ytkit is YouTube-only; grep this file first.
+
 That's it. ytkit reads `config/config.json` and fills in all paths and flags automatically.
 No manual path construction. No reading config first. Just run the command.
 
