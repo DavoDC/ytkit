@@ -51,17 +51,21 @@ def ensure_ytdlp(config):
     return json.loads(CONFIG_PATH.read_text())
 
 
-def build_command(config, url, mode="audio", out_dir=None):
+def build_command(config, url, mode="audio", out_dir=None, path_file=None):
     ytdlp = config["ytdlp_exe"]
     ffmpeg_dir = config["ffmpeg_dir"]
 
     if mode == "info":
         return [ytdlp, "--skip-download", "--dump-single-json", "--no-warnings", url]
 
+    # Final file path goes to path_file so progress still streams to the console.
+    to_file = ["--print-to-file", "after_move:filepath", str(path_file)] if path_file else []
+
     if mode == "audio":
         out = f"{config['audio_output_dir']}/%(title)s.%(ext)s"
         return [
             ytdlp,
+            *to_file,
             "--ffmpeg-location", ffmpeg_dir,
             "-f", "bestaudio",
             "--extract-audio",
@@ -89,7 +93,7 @@ def build_command(config, url, mode="audio", out_dir=None):
         extra = ["--print", "after_move:filepath"]
     else:
         out = f"{config['video_output_dir']}/%(title)s.%(ext)s"
-        extra = []
+        extra = to_file
     return [
         ytdlp,
         "--ffmpeg-location", ffmpeg_dir,
@@ -297,16 +301,39 @@ def output_dir_for(config, args) -> str:
     return args.out_dir or config["video_output_dir"]
 
 
+def print_links(folder: Path, file: Path = None):
+    """Clickable file:/// links (Windows Terminal opens them) to the output folder and the file."""
+    print(f"\nFolder: {Path(folder).resolve().as_uri()}")
+    if file:
+        print(f"File:   {Path(file).resolve().as_uri()}")
+
+
 def execute(config, args) -> int:
     if args.format in ("info", "frames"):
         out_dir = Path(args.out_dir or config["video_output_dir"])
         if args.format == "info":
-            return 0 if fetch_info(config, args.url, out_dir) else 1
-        return 0 if extract_frames(config, args.url, out_dir, args.every) else 1
+            result = fetch_info(config, args.url, out_dir)
+            if result:
+                print_links(out_dir, result)
+            return 0 if result else 1
+        result = extract_frames(config, args.url, out_dir, args.every)
+        if result:
+            print_links(result)
+        return 0 if result else 1
     if args.format == "transcript":
-        return 0 if download_transcript(config, args.url) else 1
-    cmd = build_command(config, args.url, mode=args.format)
-    return subprocess.run(cmd, creationflags=NO_WINDOW).returncode
+        result = download_transcript(config, args.url)
+        if result:
+            print_links(result.parent, result)
+        return 0 if result else 1
+    path_file = REPO_ROOT / "data" / "state" / "last-download.txt"
+    path_file.parent.mkdir(parents=True, exist_ok=True)
+    path_file.unlink(missing_ok=True)
+    cmd = build_command(config, args.url, mode=args.format, path_file=path_file)
+    code = subprocess.run(cmd, creationflags=NO_WINDOW).returncode
+    lines = path_file.read_text(encoding="utf-8").splitlines() if path_file.exists() else []
+    if code == 0 and lines:
+        print_links(Path(lines[-1]).parent, Path(lines[-1]))
+    return code
 
 
 def log_line(input_url, url, requested, fmt, out_dir, code, started, error="") -> str:

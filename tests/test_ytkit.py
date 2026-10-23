@@ -222,5 +222,21 @@ class TestFramesMode(unittest.TestCase):
         self.assertIn("after_move:filepath", cmd)
 
 
+
+class TestDownloadLinks(unittest.TestCase):
+    def test_path_file_adds_print_to_file_for_audio_and_video(self):
+        for mode in ("audio", "video"):
+            cmd = ytkit.build_command(SAMPLE_CONFIG, "https://youtu.be/t", mode=mode, path_file="p.txt")
+            self.assertEqual(cmd[cmd.index("--print-to-file") + 1:][:2], ["after_move:filepath", "p.txt"])
+
+    def test_print_links_shows_folder_and_file_uris(self):
+        import io, contextlib
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            ytkit.print_links(Path("C:/Users/x/My Dir"), Path("C:/Users/x/My Dir/a b.mp3"))
+        out = buf.getvalue()
+        self.assertIn("Folder: file:///C:/Users/x/My%20Dir", out)
+        self.assertIn("File:   file:///C:/Users/x/My%20Dir/a%20b.mp3", out)
+
 if __name__ == "__main__":
     unittest.main()
