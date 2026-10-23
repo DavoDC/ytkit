@@ -234,19 +234,39 @@ def normalize_url(url: str) -> str:
     return f"https://www.instagram.com/{kind}/{m.group(2)}"
 
 
+FORMATS = ("audio", "video", "transcript", "info", "frames")
+FORMAT_ALIASES = {"a": "audio", "v": "video", "t": "transcript", "i": "info", "f": "frames",
+                  "1": "audio", "2": "video", "3": "transcript", "4": "info", "5": "frames"}
+
+
+def resolve_format(fmt, url: str) -> str:
+    """Alias/menu-digit/blank -> a real format; blank or unknown means audio, or video for Instagram."""
+    is_ig = bool(_IG_POST.match(url.strip()))
+    fmt = (fmt or "").strip().lower()
+    fmt = FORMAT_ALIASES.get(fmt, fmt)
+    if fmt not in FORMATS:
+        fmt = "audio"
+    if is_ig and fmt in ("audio", "transcript"):
+        if fmt == "transcript":
+            print("Instagram reels have no subtitles - downloading video instead.")
+        return "video"
+    return fmt
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="ytkit - download audio/video/transcript from YouTube"
     )
     parser.add_argument("--url", required=True, help="YouTube URL")
     parser.add_argument(
-        "--format", choices=["audio", "video", "transcript", "info", "frames"], default="audio",
-        help="Output format (default: audio as MP3); info = caption/stats/comments, "
+        "--format", default="",
+        help="audio|video|transcript|info|frames, letter or 1-5 (default: audio as MP3, video for Instagram); info = caption/stats/comments, "
              "frames = video plus a JPEG every --every seconds"
     )
     parser.add_argument("--out-dir", help="Output folder for info/frames (default: video_output_dir)")
     parser.add_argument("--every", type=int, default=3, help="Seconds between frames (frames mode)")
     args = parser.parse_args()
+    args.format = resolve_format(args.format, args.url)
     args.url = normalize_url(args.url)
 
     config = load_config()

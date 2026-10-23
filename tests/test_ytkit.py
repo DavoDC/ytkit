@@ -44,6 +44,24 @@ class TestNormalizeUrl(unittest.TestCase):
             self.assertEqual(ytkit.normalize_url(url), url)
 
 
+class TestResolveFormat(unittest.TestCase):
+    YT = "https://youtu.be/abc"
+    IG = "https://www.instagram.com/reel/Dbs7zZTyCSf/?x=1"
+
+    def test_defaults_and_aliases(self):
+        self.assertEqual(ytkit.resolve_format("", self.YT), "audio")
+        self.assertEqual(ytkit.resolve_format("junk", self.YT), "audio")
+        self.assertEqual(ytkit.resolve_format("V", self.YT), "video")
+        self.assertEqual(ytkit.resolve_format("3", self.YT), "transcript")
+        self.assertEqual(ytkit.resolve_format("frames", self.YT), "frames")
+
+    def test_instagram_defaults_to_video(self):
+        self.assertEqual(ytkit.resolve_format("", self.IG), "video")
+        self.assertEqual(ytkit.resolve_format("audio", self.IG), "video")
+        self.assertEqual(ytkit.resolve_format("t", self.IG), "video")
+        self.assertEqual(ytkit.resolve_format("info", self.IG), "info")
+
+
 class TestBuildCommand(unittest.TestCase):
     def test_audio_command_has_mp3_flags(self):
         cmd = ytkit.build_command(SAMPLE_CONFIG, "https://youtu.be/test", mode="audio")
