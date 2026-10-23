@@ -15,13 +15,16 @@ import json
 import re
 import subprocess
 import sys
+import time
 from pathlib import Path
+from urllib.parse import urlparse
 
 sys.path.insert(0, str(Path(__file__).parent))
 import ytkit_update  # noqa: E402
 
 REPO_ROOT = Path(__file__).parent.parent
 CONFIG_PATH = REPO_ROOT / "config" / "config.json"
+LOG_PATH = REPO_ROOT / "data" / "logs" / "ytkit.log"
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
 
@@ -266,23 +269,71 @@ def main():
     parser.add_argument("--out-dir", help="Output folder for info/frames (default: video_output_dir)")
     parser.add_argument("--every", type=int, default=3, help="Seconds between frames (frames mode)")
     args = parser.parse_args()
-    args.format = resolve_format(args.format, args.url)
-    args.url = normalize_url(args.url)
+    requested, input_url = args.format, args.url
+    args.format = resolve_format(requested, input_url)
+    args.url = normalize_url(input_url)
 
-    config = load_config()
-    config = ensure_ytdlp(config)
+    started = time.time()
+    code, out_dir, error = 1, "", ""
+    try:
+        config = ensure_ytdlp(load_config())
+        out_dir = output_dir_for(config, args)
+        code = execute(config, args)
+    except SystemExit as e:
+        code = e.code if isinstance(e.code, int) else 1
+    except Exception as e:  # logged, then re-raised so the traceback still shows
+        error = f"{type(e).__name__}: {e}"
+        write_log(args, input_url, requested, out_dir, code, started, error)
+        raise
+    write_log(args, input_url, requested, out_dir, code, started, error)
+    sys.exit(code)
 
+
+def output_dir_for(config, args) -> str:
+    if args.format == "audio":
+        return config["audio_output_dir"]
+    if args.format == "transcript":
+        return config.get("transcript_output_dir", config["video_output_dir"])
+    return args.out_dir or config["video_output_dir"]
+
+
+def execute(config, args) -> int:
     if args.format in ("info", "frames"):
         out_dir = Path(args.out_dir or config["video_output_dir"])
         if args.format == "info":
-            sys.exit(0 if fetch_info(config, args.url, out_dir) else 1)
-        sys.exit(0 if extract_frames(config, args.url, out_dir, args.every) else 1)
-
+            return 0 if fetch_info(config, args.url, out_dir) else 1
+        return 0 if extract_frames(config, args.url, out_dir, args.every) else 1
     if args.format == "transcript":
-        sys.exit(0 if download_transcript(config, args.url) else 1)
-
+        return 0 if download_transcript(config, args.url) else 1
     cmd = build_command(config, args.url, mode=args.format)
-    sys.exit(subprocess.run(cmd, creationflags=NO_WINDOW).returncode)
+    return subprocess.run(cmd, creationflags=NO_WINDOW).returncode
+
+
+def log_line(input_url, url, requested, fmt, out_dir, code, started, error="") -> str:
+    """One key=value line per run: when, what was asked, what ran, where it went, how it ended."""
+    host = (urlparse(url if "//" in url else "//" + url).hostname or "?").removeprefix("www.")
+    source = "instagram" if _IG_POST.match(url) else host
+    parts = [
+        time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(started)),
+        f"EVENT=run source={source} format={fmt} requested={requested or '(blank)'}",
+        f"exit={code} seconds={time.time() - started:.1f}",
+        f"out_dir={out_dir or '-'}",
+        f"url={url}",
+    ]
+    if input_url != url:
+        parts.append(f"input_url={input_url}")
+    if error:
+        parts.append(f"error={error}")
+    return " ".join(parts)
+
+
+def write_log(args, input_url, requested, out_dir, code, started, error=""):
+    try:
+        LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+        with LOG_PATH.open("a", encoding="utf-8") as f:
+            f.write(log_line(input_url, args.url, requested, args.format, out_dir, code, started, error) + "\n")
+    except OSError:
+        pass  # logging must never fail a download
 
 
 if __name__ == "__main__":

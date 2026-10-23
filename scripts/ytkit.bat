@@ -32,6 +32,6 @@ python "%~dp0..\src\ytkit.py" --url "%URL%" --format "%FORMAT%"
 echo Exit code: %errorlevel% >> "%LOG%"
 echo End: %date% %time% >> "%LOG%"
 echo.
-echo   Done. Log: data\logs\ytkit-bat.log
+echo   Done. Run details: data\logs\ytkit.log
 echo.
 cmd /k

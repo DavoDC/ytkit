@@ -44,6 +44,23 @@ class TestNormalizeUrl(unittest.TestCase):
             self.assertEqual(ytkit.normalize_url(url), url)
 
 
+class TestLogLine(unittest.TestCase):
+    def test_instagram_line_has_all_details(self):
+        line = ytkit.log_line("https://www.instagram.com/reel/AbC/?x=1", "https://www.instagram.com/reel/AbC",
+                              "", "video", "C:\\Downloads", 0, 0.0)
+        for want in ("EVENT=run", "source=instagram", "format=video", "requested=(blank)", "exit=0",
+                     "out_dir=C:\\Downloads", "url=https://www.instagram.com/reel/AbC",
+                     "input_url=https://www.instagram.com/reel/AbC/?x=1"):
+            self.assertIn(want, line)
+
+    def test_youtube_source_and_error(self):
+        line = ytkit.log_line("https://www.youtube.com/watch?v=a", "https://www.youtube.com/watch?v=a",
+                              "t", "transcript", "", 1, 0.0, "RuntimeError: boom")
+        self.assertIn("source=youtube.com", line)
+        self.assertNotIn("input_url=", line)
+        self.assertIn("error=RuntimeError: boom", line)
+
+
 class TestResolveFormat(unittest.TestCase):
     YT = "https://youtu.be/abc"
     IG = "https://www.instagram.com/reel/Dbs7zZTyCSf/?x=1"
