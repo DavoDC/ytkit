@@ -229,14 +229,18 @@ class TestDownloadLinks(unittest.TestCase):
             cmd = ytkit.build_command(SAMPLE_CONFIG, "https://youtu.be/t", mode=mode, path_file="p.txt")
             self.assertEqual(cmd[cmd.index("--print-to-file") + 1:][:2], ["after_move:filepath", "p.txt"])
 
-    def test_print_links_shows_folder_and_file_uris(self):
+    def test_print_links_plain_uris_when_piped(self):
         import io, contextlib
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf):
             ytkit.print_links(Path("C:/Users/x/My Dir"), Path("C:/Users/x/My Dir/a b.mp3"))
         out = buf.getvalue()
-        self.assertIn("Folder: file:///C:/Users/x/My%20Dir", out)
-        self.assertIn("File:   file:///C:/Users/x/My%20Dir/a%20b.mp3", out)
+        self.assertIn("file:///C:/Users/x/My%20Dir", out)
+        self.assertIn("a%20b.mp3", out)
+
+    def test_osc8_wraps_text_in_hyperlink(self):
+        e = chr(27)
+        self.assertEqual(ytkit.osc8("file:///C:/a", "a"), e + "]8;;file:///C:/a" + e + chr(92) + "a" + e + "]8;;" + e + chr(92))
 
 if __name__ == "__main__":
     unittest.main()

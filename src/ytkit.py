@@ -301,11 +301,25 @@ def output_dir_for(config, args) -> str:
     return args.out_dir or config["video_output_dir"]
 
 
+def osc8(uri: str, text: str) -> str:
+    """OSC 8 hyperlink: Windows Terminal shows `text` as a link, Ctrl+click opens `uri`."""
+    esc, st = "\x1b", "\x1b\\"
+    return f"{esc}]8;;{uri}{st}{text}{esc}]8;;{st}"
+
+
 def print_links(folder: Path, file: Path = None):
-    """Clickable file:/// links (Windows Terminal opens them) to the output folder and the file."""
-    print(f"\nFolder: {Path(folder).resolve().as_uri()}")
+    """Short clickable links to the output folder and the file; plain URIs when output is piped."""
+    def show(label, path):
+        path = Path(path).resolve()
+        uri = path.as_uri()
+        if sys.stdout.isatty():
+            print(f"  {label} {osc8(uri, path.name or str(path))}")
+        else:
+            print(f"{label} {uri}")
+    print()
+    show("Open folder:", folder)
     if file:
-        print(f"File:   {Path(file).resolve().as_uri()}")
+        show("Open file:  ", file)
 
 
 def execute(config, args) -> int:
