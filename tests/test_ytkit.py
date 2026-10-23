@@ -244,3 +244,10 @@ class TestDownloadLinks(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestUniqueNames(unittest.TestCase):
+    def test_audio_and_video_names_include_id_so_same_title_posts_dont_collide(self):
+        for mode in ("audio", "video"):
+            cmd = ytkit.build_command(SAMPLE_CONFIG, "https://youtu.be/t", mode=mode)
+            self.assertTrue(any("%(title)s [%(id)s].%(ext)s" in a for a in cmd), mode)

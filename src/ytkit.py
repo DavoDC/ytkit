@@ -62,7 +62,7 @@ def build_command(config, url, mode="audio", out_dir=None, path_file=None):
     to_file = ["--print-to-file", "after_move:filepath", str(path_file)] if path_file else []
 
     if mode == "audio":
-        out = f"{config['audio_output_dir']}/%(title)s.%(ext)s"
+        out = f"{config['audio_output_dir']}/%(title)s [%(id)s].%(ext)s"
         return [
             ytdlp,
             *to_file,
@@ -92,7 +92,7 @@ def build_command(config, url, mode="audio", out_dir=None, path_file=None):
         out = f"{out_dir}/%(id)s.%(ext)s"
         extra = ["--print", "after_move:filepath"]
     else:
-        out = f"{config['video_output_dir']}/%(title)s.%(ext)s"
+        out = f"{config['video_output_dir']}/%(title)s [%(id)s].%(ext)s"
         extra = to_file
     return [
         ytdlp,
