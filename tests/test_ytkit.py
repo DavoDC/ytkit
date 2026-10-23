@@ -16,6 +16,34 @@ SAMPLE_CONFIG = {
 }
 
 
+class TestNormalizeUrl(unittest.TestCase):
+    ID = "Dbs7zZTyCSf"
+    WANT = f"https://www.instagram.com/reel/{ID}"
+
+    def test_instagram_forms_reduce_to_id(self):
+        forms = [
+            f"https://www.instagram.com/reel/{self.ID}/?vrfl=cWJ2bHg4aHF3Yzho",
+            f"https://www.instagram.com/reel/{self.ID}/?igsh=abc&utm_source=x#frag",
+            f"https://www.instagram.com/reel/{self.ID}",
+            f"https://instagram.com/reel/{self.ID}/",
+            f"http://m.instagram.com/reels/{self.ID}/?x=1",
+            f"https://www.instagram.com/someuser/reel/{self.ID}/?hl=en",
+            f"https://www.instagram.com/reel/{self.ID}/embed/captioned",
+            f"instagram.com/reel/{self.ID}/?x",
+            f"  https://www.instagram.com/reel/{self.ID}/?x  ",
+        ]
+        for form in forms:
+            self.assertEqual(ytkit.normalize_url(form), self.WANT, form)
+
+    def test_post_kinds_kept(self):
+        self.assertEqual(ytkit.normalize_url("https://www.instagram.com/p/AbC_-1/?x=1"),
+                         "https://www.instagram.com/p/AbC_-1")
+
+    def test_other_urls_unchanged(self):
+        for url in ("https://youtu.be/abc?t=5", "https://www.youtube.com/watch?v=abc&list=x"):
+            self.assertEqual(ytkit.normalize_url(url), url)
+
+
 class TestBuildCommand(unittest.TestCase):
     def test_audio_command_has_mp3_flags(self):
         cmd = ytkit.build_command(SAMPLE_CONFIG, "https://youtu.be/test", mode="audio")

@@ -39,10 +39,9 @@ if /i "%FORMAT%"=="t" set FORMAT=transcript
 if /i "%FORMAT%"=="i" set FORMAT=info
 if /i "%FORMAT%"=="f" set FORMAT=frames
 
-rem Instagram reel: strip the ?igsh= query string, default to video (reels have no audio-only or subtitle use)
+rem Instagram reel: ytkit.py cuts the URL down to /reel/ID; here just default to video (reels have no subtitles)
 echo "%URL%"| findstr /i "instagram.com" >nul
 if errorlevel 1 goto :fmtdone
-for /f "tokens=1 delims=?" %%a in ("%URL%") do set "URL=%%a"
 if "%FORMAT%"=="" set FORMAT=video
 if /i "%FORMAT%"=="audio" set FORMAT=video
 if /i "%FORMAT%"=="transcript" echo   Instagram reels have no subtitles - downloading video instead.

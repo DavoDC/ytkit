@@ -214,6 +214,26 @@ def download_transcript(config, url):
     return txt_path
 
 
+_IG_POST = re.compile(
+    r"^(?:https?://)?(?:[\w-]+\.)?(?:instagram\.com|instagr\.am)/"
+    r"(?:[\w.]+/)?(reels?|p|tv)/([\w-]+)",
+    re.IGNORECASE,
+)
+
+
+def normalize_url(url: str) -> str:
+    """Instagram post URLs -> https://www.instagram.com/<kind>/<ID> only.
+
+    Everything after the ID (query, fragment, trailing path) changes often, so is dropped.
+    Other URLs pass through unchanged.
+    """
+    m = _IG_POST.match(url.strip())
+    if not m:
+        return url
+    kind = "reel" if m.group(1).lower() == "reels" else m.group(1).lower()
+    return f"https://www.instagram.com/{kind}/{m.group(2)}"
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="ytkit - download audio/video/transcript from YouTube"
@@ -227,6 +247,7 @@ def main():
     parser.add_argument("--out-dir", help="Output folder for info/frames (default: video_output_dir)")
     parser.add_argument("--every", type=int, default=3, help="Seconds between frames (frames mode)")
     args = parser.parse_args()
+    args.url = normalize_url(args.url)
 
     config = load_config()
     config = ensure_ytdlp(config)
