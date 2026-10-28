@@ -25,8 +25,10 @@ def main():
         p = Path(arg)
         if p.is_dir():
             targets.extend(sorted(p.glob("*.vtt")))
-        else:
+        elif p.exists():
             targets.append(p)
+        else:
+            print(f"[SKIP] not found: {arg}")
 
     # Prefer non "-orig" variant when both exist for the same video id.
     preferred = [t for t in targets if "-orig" not in t.name]

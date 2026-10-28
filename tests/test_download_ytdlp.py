@@ -1,12 +1,32 @@
+import io
 import json
 import sys
+import tempfile
 import unittest
-from io import BytesIO
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 import download_ytdlp as dl
+
+
+class FakeResponse:
+    def __init__(self, body: bytes, headers: dict):
+        self._buf = io.BytesIO(body)
+        self.headers = headers
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+    def read(self, n=-1):
+        return self._buf.read(n)
+
+
+def fake_opener(body: bytes, headers: dict):
+    return MagicMock(return_value=FakeResponse(body, headers))
 
 
 class TestFindAssetUrl(unittest.TestCase):
@@ -26,68 +46,76 @@ class TestFindAssetUrl(unittest.TestCase):
 
 
 class TestBinaryExists(unittest.TestCase):
-    def test_returns_true_when_binary_exists(self):
-        with patch("download_ytdlp.Path") as mock_path_cls:
-            mock_path = MagicMock()
-            mock_path.exists.return_value = True
-            mock_path_cls.return_value = mock_path
-            config = {"ytdlp_exe": "C:\\some\\yt-dlp.exe"}
-            self.assertTrue(dl.binary_exists(config))
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.dir = Path(tmp.name)
 
-    def test_returns_false_when_binary_missing(self):
-        with patch("download_ytdlp.Path") as mock_path_cls:
-            mock_path = MagicMock()
-            mock_path.exists.return_value = False
-            mock_path_cls.return_value = mock_path
-            config = {"ytdlp_exe": "C:\\missing\\yt-dlp.exe"}
-            self.assertFalse(dl.binary_exists(config))
+    def test_true_for_nonempty_file(self):
+        exe = self.dir / "yt-dlp.exe"
+        exe.write_bytes(b"x")
+        self.assertTrue(dl.binary_exists({"ytdlp_exe": str(exe)}))
 
-    def test_returns_false_when_config_key_absent(self):
+    def test_false_for_zero_byte_file(self):
+        exe = self.dir / "yt-dlp.exe"
+        exe.write_bytes(b"")
+        self.assertFalse(dl.binary_exists({"ytdlp_exe": str(exe)}))
+
+    def test_false_when_binary_missing(self):
+        self.assertFalse(dl.binary_exists({"ytdlp_exe": str(self.dir / "missing.exe")}))
+
+    def test_false_when_config_key_absent(self):
         self.assertFalse(dl.binary_exists({}))
 
-    def test_returns_false_when_ytdlp_exe_empty_string(self):
+    def test_false_when_ytdlp_exe_empty_string(self):
         self.assertFalse(dl.binary_exists({"ytdlp_exe": ""}))
 
 
 class TestDownloadBinary(unittest.TestCase):
-    def _make_mock_response(self, content=b"fake-exe-content", content_length="16"):
-        mock_response = MagicMock()
-        mock_response.headers.get.return_value = content_length
-        mock_response.read.side_effect = [content, b""]
-        mock_response.__enter__ = lambda s: s
-        mock_response.__exit__ = MagicMock(return_value=False)
-        return mock_response
+    URL = "https://example.invalid/yt-dlp.exe"
 
-    def test_download_creates_file_at_dest(self):
-        import tempfile, os
-        with tempfile.TemporaryDirectory() as tmp:
-            dest = Path(tmp) / "yt-dlp.exe"
-            mock_response = self._make_mock_response()
-            with patch("urllib.request.urlopen", return_value=mock_response):
-                with patch.object(dl, "DEST_DIR", Path(tmp)):
-                    result = dl.download_binary(url="https://fake.url", dest=dest)
-            self.assertTrue(dest.exists())
-            self.assertEqual(result, dest)
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.dest = Path(tmp.name) / "yt-dlp.exe"
+        self.staging = self.dest.with_name(self.dest.name + ".new")
 
-    def test_download_file_has_correct_content(self):
-        import tempfile
-        with tempfile.TemporaryDirectory() as tmp:
-            dest = Path(tmp) / "yt-dlp.exe"
-            content = b"fake-binary-data"
-            mock_response = self._make_mock_response(content=content, content_length="0")
-            with patch("urllib.request.urlopen", return_value=mock_response):
-                with patch.object(dl, "DEST_DIR", Path(tmp)):
-                    dl.download_binary(url="https://fake.url", dest=dest)
-            self.assertEqual(dest.read_bytes(), content)
+    def test_success_replaces_dest_and_leaves_no_staging_file(self):
+        content = b"fake-binary-data"
+        opener = fake_opener(content, {"Content-Length": str(len(content))})
+        result = dl.download_binary(url=self.URL, dest=self.dest, opener=opener)
+        self.assertEqual(result, self.dest)
+        self.assertEqual(self.dest.read_bytes(), content)
+        self.assertFalse(self.staging.exists())
+        opener.assert_called_once_with(self.URL, timeout=60)
+
+    def test_size_mismatch_keeps_old_binary(self):
+        self.dest.write_bytes(b"old")
+        opener = fake_opener(b"partial", {"Content-Length": "100"})
+        with self.assertRaises(RuntimeError):
+            dl.download_binary(url=self.URL, dest=self.dest, opener=opener)
+        self.assertEqual(self.dest.read_bytes(), b"old")
+        self.assertFalse(self.staging.exists())
+
+    def test_empty_download_is_rejected(self):
+        opener = fake_opener(b"", {})
+        with self.assertRaises(RuntimeError):
+            dl.download_binary(url=self.URL, dest=self.dest, opener=opener)
+        self.assertFalse(self.dest.exists())
+        self.assertFalse(self.staging.exists())
+
+    def test_missing_content_length_is_still_accepted(self):
+        dl.download_binary(url=self.URL, dest=self.dest, opener=fake_opener(b"abc", {}))
+        self.assertEqual(self.dest.read_bytes(), b"abc")
 
 
 class TestUpdateConfig(unittest.TestCase):
     def test_config_updated_with_new_path(self):
-        import tempfile
         with tempfile.TemporaryDirectory() as tmp:
             config_path = Path(tmp) / "config.json"
             config = {"ytdlp_exe": "", "ffmpeg_dir": "C:\\ffmpeg"}
             config_path.write_text(json.dumps(config))
+            from unittest.mock import patch
             with patch.object(dl, "CONFIG_PATH", config_path):
                 dl.update_config(config, Path("C:\\ytkit\\dependencies\\yt-dlp\\yt-dlp.exe"))
             result = json.loads(config_path.read_text())

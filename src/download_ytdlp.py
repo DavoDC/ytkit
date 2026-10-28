@@ -5,6 +5,7 @@ Usage: python src/download_ytdlp.py
 """
 
 import json
+import os
 import sys
 import time
 import urllib.request
@@ -15,6 +16,7 @@ CONFIG_PATH = REPO_ROOT / "config" / "config.json"
 DEST_DIR = REPO_ROOT / "dependencies" / "yt-dlp"
 DEST_EXE = DEST_DIR / "yt-dlp.exe"
 DOWNLOAD_URL = "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe"
+TIMEOUT_SECONDS = 60
 
 
 def load_config():
@@ -27,7 +29,10 @@ def load_config():
 
 def binary_exists(config):
     exe = config.get("ytdlp_exe", "")
-    return bool(exe) and Path(exe).exists()
+    if not exe:
+        return False
+    path = Path(exe)
+    return path.exists() and path.stat().st_size > 0
 
 
 def find_asset_url(release_data):
@@ -37,28 +42,42 @@ def find_asset_url(release_data):
     return None
 
 
-def download_binary(url=DOWNLOAD_URL, dest=DEST_EXE):
-    DEST_DIR.mkdir(parents=True, exist_ok=True)
+def download_binary(url=DOWNLOAD_URL, dest=DEST_EXE, opener=None):
+    """Download to <dest>.new, verify it, then os.replace it over dest.
+    A failed or truncated download never touches an existing binary."""
+    opener = opener or urllib.request.urlopen
+    dest = Path(dest)
+    staging = dest.with_name(dest.name + ".new")
+    dest.parent.mkdir(parents=True, exist_ok=True)
     print(f"Downloading yt-dlp.exe from {url}")
     start = time.time()
-    with urllib.request.urlopen(url) as response:
-        total = int(response.headers.get("Content-Length", 0))
-        downloaded = 0
-        with open(dest, "wb") as f:
-            while True:
-                chunk = response.read(8192)
-                if not chunk:
-                    break
-                f.write(chunk)
-                downloaded += len(chunk)
-                if total:
-                    pct = downloaded * 100 // total
-                    print(f"\r  {pct}% ({downloaded // 1024}KB / {total // 1024}KB)", end="", flush=True)
+    try:
+        with opener(url, timeout=TIMEOUT_SECONDS) as response:
+            total = int(response.headers.get("Content-Length") or 0)
+            downloaded = 0
+            with open(staging, "wb") as f:
+                while True:
+                    chunk = response.read(8192)
+                    if not chunk:
+                        break
+                    f.write(chunk)
+                    downloaded += len(chunk)
+                    if total:
+                        pct = downloaded * 100 // total
+                        print(f"\r  {pct}% ({downloaded // 1024}KB / {total // 1024}KB)", end="", flush=True)
+        if total:
+            print()
+        if downloaded == 0:
+            raise RuntimeError("download was empty")
+        if total and downloaded != total:
+            raise RuntimeError(f"size mismatch: got {downloaded} bytes, expected {total}")
+    except BaseException:
+        staging.unlink(missing_ok=True)
+        raise
+    os.replace(staging, dest)
     elapsed = time.time() - start
-    if total:
-        print()
     print(f"  Done in {elapsed:.1f}s -> {dest}")
-    return Path(dest)
+    return dest
 
 
 def update_config(config, exe_path):

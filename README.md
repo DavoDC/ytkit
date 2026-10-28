@@ -22,6 +22,7 @@ Download audio and video from YouTube with sane defaults - highest quality audio
    - `ffmpeg_dir` - path to a folder containing `ffmpeg.exe` (or use [ffkit](https://github.com/DavoDC/ffkit))
    - `audio_output_dir` - where downloaded audio goes
    - `video_output_dir` - where downloaded video goes
+   - `transcript_output_dir` - where transcripts go (optional, defaults to `video_output_dir`)
 4. Run `python src/download_ytdlp.py` - auto-downloads yt-dlp if missing and updates your config
 
 ## Usage
@@ -42,12 +43,34 @@ python src/ytkit.py --url "https://youtu.be/..." --format video
 # Caption, stats and top comments of any post (also Instagram reels), saved as .info.json and .info.txt
 python src/ytkit.py --url "https://www.instagram.com/reel/..." --format info --out-dir ./out
 
-# Download the video and sample a JPEG every 3 seconds into ./out/frames
+# Download the video and sample a JPEG every 3 seconds into ./out/frames/<video id>/
 python src/ytkit.py --url "https://www.instagram.com/reel/..." --format frames --out-dir ./out --every 3
+
+# Same frames run, but one small contact sheet instead of many JPEGs
+python src/ytkit.py --url "https://www.instagram.com/reel/..." --format frames --out-dir ./out --sheet
+
+# Keep only the part from 0:21 to 0:45 of a video
+python src/ytkit.py --url "https://youtu.be/..." --format video --start 21 --end 45
 ```
 
 Paths, flags, and format defaults are handled automatically from `config/config.json`.
 No manual yt-dlp commands needed.
+
+### Cutting a clip (--start / --end)
+
+Video and audio downloads accept `--start` and `--end` as seconds (`21`) or `minutes:seconds` (`1:05`). Leave either one out to run to the start or end of the video. ytkit passes these to yt-dlp as a section with keyframe cuts, so the clip begins where you asked.
+
+### Contact sheet (--sheet)
+
+With `--format frames --sheet`, ytkit writes one tiled image, `<video id>_sheet.jpg`, instead of one JPEG per sample. It is a 5 by 4 grid of small frames taken every `--every` seconds, so a whole reel fits in one small file.
+
+### Frames folder layout
+
+Frames go to `<out-dir>/frames/<video id>/`, one folder per video. A second run for another video never overwrites the first. The folder holds `f001.jpg`, `f002.jpg` and so on, or the single `<video id>_sheet.jpg` with `--sheet`.
+
+### Playlists (--no-playlist)
+
+Audio and video downloads always pass `--no-playlist`. A URL that also names a playlist downloads only the one video it points at.
 
 ## Background updates
 
@@ -70,6 +93,7 @@ ytkit/
   src/download_ytdlp.py - auto-downloads yt-dlp binary if missing
   src/ytkit_update.py   - non-blocking background updater for the yt-dlp binary
   scripts/ytkit.bat     - double-click launcher, no terminal/Claude needed
+  scripts/ytkit-menu.ps1 - arrow-key format menu that the launcher runs, then hands off to ytkit.py
   data/logs/            - runtime logs
 ```
 

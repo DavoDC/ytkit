@@ -7,7 +7,8 @@ Usage:
   python src/ytkit.py --url <YouTube URL> --format video
   python src/ytkit.py --url <YouTube URL> --format transcript
   python src/ytkit.py --url <any yt-dlp URL> --format info --out-dir <dir>
-  python src/ytkit.py --url <any yt-dlp URL> --format frames --out-dir <dir> [--every 3]
+  python src/ytkit.py --url <any yt-dlp URL> --format frames --out-dir <dir> [--every 3] [--sheet]
+  python src/ytkit.py --url <any yt-dlp URL> --format video --start 1:05 --end 2:00
 """
 
 import argparse
@@ -51,7 +52,14 @@ def ensure_ytdlp(config):
     return json.loads(CONFIG_PATH.read_text())
 
 
-def build_command(config, url, mode="audio", out_dir=None, path_file=None):
+def section_args(start=None, end=None):
+    """yt-dlp --download-sections args for a cut. A missing side means start or end of the video."""
+    if not start and not end:
+        return []
+    return ["--download-sections", f"*{start or '0'}-{end or 'inf'}", "--force-keyframes-at-cuts"]
+
+
+def build_command(config, url, mode="audio", out_dir=None, path_file=None, start=None, end=None):
     ytdlp = config["ytdlp_exe"]
     ffmpeg_dir = config["ffmpeg_dir"]
 
@@ -60,6 +68,7 @@ def build_command(config, url, mode="audio", out_dir=None, path_file=None):
 
     # Final file path goes to path_file so progress still streams to the console.
     to_file = ["--print-to-file", "after_move:filepath", str(path_file)] if path_file else []
+    sections = section_args(start, end)
 
     if mode == "audio":
         out = f"{config['audio_output_dir']}/%(title)s [%(id)s].%(ext)s"
@@ -71,6 +80,8 @@ def build_command(config, url, mode="audio", out_dir=None, path_file=None):
             "--extract-audio",
             "--audio-format", "mp3",
             "--audio-quality", "0",
+            "--no-playlist",
+            *sections,
             "-o", out,
             url,
         ]
@@ -99,6 +110,8 @@ def build_command(config, url, mode="audio", out_dir=None, path_file=None):
         "--ffmpeg-location", ffmpeg_dir,
         "-f", "bestvideo+bestaudio",
         "--merge-output-format", "mp4",
+        "--no-playlist",
+        *sections,
         *extra,
         "-o", out,
         url,
@@ -132,7 +145,7 @@ def fetch_info(config, url, out_dir: Path):
     """Write <id>.info.json and <id>.info.txt (caption, stats, comments) for url into out_dir.
     Returns the .txt path, or None on failure. Works for any site yt-dlp supports."""
     result = subprocess.run(build_command(config, url, mode="info"), capture_output=True, text=True,
-                            creationflags=NO_WINDOW)
+                            encoding="utf-8", errors="replace", creationflags=NO_WINDOW)
     if result.returncode != 0:
         print(result.stderr, file=sys.stderr)
         return None
@@ -148,26 +161,40 @@ def fetch_info(config, url, out_dir: Path):
     return txt_path
 
 
-def build_frames_command(config, video_path: Path, out_dir: Path, every=3):
+SHEET_COLS, SHEET_ROWS = 5, 4
+
+
+def build_frames_command(config, video_path: Path, out_dir: Path, every=3, sheet=False):
     ffmpeg = Path(config["ffmpeg_dir"]) / "ffmpeg.exe"
-    return [str(ffmpeg), "-v", "error", "-i", str(video_path),
-            "-vf", f"fps=1/{every},scale=540:-1", str(Path(out_dir) / "f%03d.jpg")]
+    out_dir = Path(out_dir)
+    if sheet:
+        # One small tiled contact sheet of every `every`-th frame instead of many JPEGs.
+        vf = f"fps=1/{every},scale=240:-1,tile={SHEET_COLS}x{SHEET_ROWS}"
+        out = out_dir / f"{Path(video_path).stem}_sheet.jpg"
+        return [str(ffmpeg), "-v", "error", "-y", "-i", str(video_path),
+                "-vf", vf, "-frames:v", "1", "-q:v", "8", str(out)]
+    return [str(ffmpeg), "-v", "error", "-y", "-i", str(video_path),
+            "-vf", f"fps=1/{every},scale=540:-1", str(out_dir / "f%03d.jpg")]
 
 
-def extract_frames(config, url, out_dir: Path, every=3):
-    """Download the video into out_dir and sample a JPEG every `every` seconds into out_dir/frames.
-    Returns the frames folder, or None on failure."""
+def extract_frames(config, url, out_dir: Path, every=3, sheet=False):
+    """Download the video into out_dir and sample frames every `every` seconds into
+    out_dir/frames/<video id>/ (or one contact sheet there when sheet=True).
+    Returns that folder, or None on failure."""
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     result = subprocess.run(build_command(config, url, mode="video", out_dir=str(out_dir)),
-                            capture_output=True, text=True, creationflags=NO_WINDOW)
+                            capture_output=True, text=True, encoding="utf-8", errors="replace",
+                            creationflags=NO_WINDOW)
     printed = [line for line in result.stdout.splitlines() if line.strip()]
     if result.returncode != 0 or not printed:
         print(result.stderr, file=sys.stderr)
         return None
-    frames_dir = out_dir / "frames"
-    frames_dir.mkdir(exist_ok=True)
-    done = subprocess.run(build_frames_command(config, Path(printed[-1]), frames_dir, every),
+    video_path = Path(printed[-1])
+    # One folder per video id, so a second run for another video never overwrites the first.
+    frames_dir = out_dir / "frames" / video_path.stem
+    frames_dir.mkdir(parents=True, exist_ok=True)
+    done = subprocess.run(build_frames_command(config, video_path, frames_dir, every, sheet),
                           creationflags=NO_WINDOW)
     if done.returncode != 0:
         return None
@@ -190,11 +217,19 @@ def clean_vtt(vtt_path: Path) -> str:
     return " ".join(out)
 
 
+def find_vtt_candidates(out_dir, video_id):
+    """Sorted .vtt files in out_dir whose name carries the literal [video_id] tag.
+    Not a glob class: [abc] would match any file containing a, b or c."""
+    tag = f"[{video_id}]"
+    return sorted(p for p in Path(out_dir).glob("*.vtt") if tag in p.name)
+
+
 def download_transcript(config, url):
     """Download auto/manual English subs for url, clean to plain text, write a
     .txt next to the .vtt files. Returns the path to the cleaned .txt, or None."""
     cmd = build_command(config, url, mode="transcript")
-    result = subprocess.run(cmd, capture_output=True, text=True, creationflags=NO_WINDOW)
+    result = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace",
+                            creationflags=NO_WINDOW)
     print(result.stdout)
     if result.returncode != 0:
         print(result.stderr, file=sys.stderr)
@@ -206,7 +241,7 @@ def download_transcript(config, url):
     if not video_id:
         return None
 
-    candidates = sorted(out_dir.glob(f"*[{video_id}]*.vtt"))
+    candidates = find_vtt_candidates(out_dir, video_id)
     # Prefer the non-"-orig" file (yt-dlp's cleaned auto-caption track) if both exist.
     preferred = [c for c in candidates if "-orig" not in c.name]
     vtt_path = (preferred or candidates or [None])[0]
@@ -261,6 +296,9 @@ def resolve_format(fmt, url: str) -> str:
 
 
 def main():
+    if hasattr(sys.stdout, "reconfigure"):
+        # Captions and comments can hold emoji; a cp1252 console must not crash on them.
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     parser = argparse.ArgumentParser(
         description="ytkit - download audio/video/transcript from YouTube"
     )
@@ -272,6 +310,10 @@ def main():
     )
     parser.add_argument("--out-dir", help="Output folder for info/frames (default: video_output_dir)")
     parser.add_argument("--every", type=int, default=3, help="Seconds between frames (frames mode)")
+    parser.add_argument("--sheet", action="store_true",
+                        help="frames mode: one tiled contact sheet instead of many JPEGs")
+    parser.add_argument("--start", help="video/audio: cut start, e.g. 21 or 1:05 (omit for start of video)")
+    parser.add_argument("--end", help="video/audio: cut end, e.g. 45 or 2:00 (omit for end of video)")
     args = parser.parse_args()
     requested, input_url = args.format, args.url
     args.format = resolve_format(requested, input_url)
@@ -330,7 +372,7 @@ def execute(config, args) -> int:
             if result:
                 print_links(out_dir, result)
             return 0 if result else 1
-        result = extract_frames(config, args.url, out_dir, args.every)
+        result = extract_frames(config, args.url, out_dir, args.every, args.sheet)
         if result:
             print_links(result)
         return 0 if result else 1
@@ -342,11 +384,16 @@ def execute(config, args) -> int:
     path_file = REPO_ROOT / "data" / "state" / "last-download.txt"
     path_file.parent.mkdir(parents=True, exist_ok=True)
     path_file.unlink(missing_ok=True)
-    cmd = build_command(config, args.url, mode=args.format, path_file=path_file)
+    cmd = build_command(config, args.url, mode=args.format, path_file=path_file,
+                        start=args.start, end=args.end)
     code = subprocess.run(cmd, creationflags=NO_WINDOW).returncode
     lines = path_file.read_text(encoding="utf-8").splitlines() if path_file.exists() else []
-    if code == 0 and lines:
-        print_links(Path(lines[-1]).parent, Path(lines[-1]))
+    if code == 0:
+        output = Path(lines[-1]) if lines else None
+        if output is None or not output.exists():
+            print(f"[ERROR] yt-dlp finished but the output file is missing: {output or '(no path printed)'}")
+            return 1
+        print_links(output.parent, output)
     return code
 
 
